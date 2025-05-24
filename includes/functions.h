@@ -42,6 +42,11 @@ struct Catch {
     std::string quality;
 };
 
+struct Statistics {
+    int trawlerId;
+    double totalCatch;
+};
+
 // Инициализация базы данных
 sqlite3* initializeDatabase(const std::string& dbPath);
 
@@ -66,12 +71,20 @@ bool addBank(sqlite3* db, const std::string& bankName);
 bool updateBankName(sqlite3* db, int bankId, const std::string& newName);
 bool deleteBank(sqlite3* db, int bankId);
 
-// Добавить в существующие объявления
 bool calculateBonuses(sqlite3* db,
     const std::string& startDate,
     const std::string& endDate,
     double planAmount,
     double pricePerKg);
+
+bool calculateBonusForCrewMember(
+    sqlite3* db,
+    int crewId,
+    const std::string& startDate,
+    const std::string& endDate,
+    double planAmount,
+    double pricePerKg
+);
 
 std::vector<Bank> getAllBanks(sqlite3* db);
 Bank getBankById(sqlite3* db, int bankId);

@@ -214,7 +214,39 @@ bool addCatch(sqlite3* db, const Catch& fishCatch) {
         std::to_string(fishCatch.voyageId) + ", " + std::to_string(fishCatch.bankId) + ", '" +
         fishCatch.fishType + "', " + std::to_string(fishCatch.quantityKg) + ", '" +
         fishCatch.quality + "');";
-    return executeSQL(db, sql);
+    if (!executeSQL(db, sql)) return false;
+
+    // Получить TRAWLER_ID из VOYAGE_ID
+    sql = "SELECT TRAWLER_ID FROM VOYAGES WHERE VOYAGE_ID = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        printError(db);
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, fishCatch.voyageId);
+    int trawlerId = -1;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        trawlerId = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+    if (trawlerId == -1) return false;
+
+    // Обновить STATISTICS
+    sql = "INSERT INTO STATISTICS (TRAWLER_ID, TOTAL_CATCH) VALUES (?, ?) "
+        "ON CONFLICT(TRAWLER_ID) DO UPDATE SET TOTAL_CATCH = TOTAL_CATCH + excluded.TOTAL_CATCH;";
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        printError(db);
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, trawlerId);
+    sqlite3_bind_double(stmt, 2, fishCatch.quantityKg);
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        printError(db);
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    sqlite3_finalize(stmt);
+    return true;
 }
 
 bool updateCatch(sqlite3* db, int id, const Catch& newData) {
@@ -284,6 +316,69 @@ bool calculateBonuses(sqlite3* db,
     int rowsAffected = sqlite3_changes(db);
     std::cout << "Successfully calculated bonuses for " << rowsAffected << " crew members" << std::endl;
 
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool calculateBonusForCrewMember(
+    sqlite3* db,
+    int crewId,
+    const std::string& startDate,
+    const std::string& endDate,
+    double planAmount,
+    double pricePerKg
+) {
+    // Проверка существования члена экипажа
+    std::string checkCrew = "SELECT CREW_ID FROM CREW_MEMBERS WHERE CREW_ID = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, checkCrew.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        printError(db);
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, crewId);
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        std::cerr << "Crew member not found!\n";
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    sqlite3_finalize(stmt);
+
+    // Расчет премии
+    std::string sql =
+        "INSERT INTO BONUSES (CREW_ID, VOYAGE_ID, AMOUNT, PERIOD_START, PERIOD_END) "
+        "SELECT ?, v.VOYAGE_ID, "
+        "ROUND((SUM(ca.QUANTITY_KG) - ?) * ?, 2), "
+        "?, ? "
+        "FROM CATCHES ca "
+        "JOIN VOYAGES v ON ca.VOYAGE_ID = v.VOYAGE_ID "
+        "WHERE v.START_DATE BETWEEN ? AND ? "
+        "AND v.TRAWLER_ID = (SELECT TRAWLER_ID FROM CREW_MEMBERS WHERE CREW_ID = ?) "
+        "GROUP BY v.VOYAGE_ID "
+        "HAVING SUM(ca.QUANTITY_KG) > ?;";
+
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        printError(db);
+        return false;
+    }
+
+    sqlite3_bind_int(stmt, 1, crewId);
+    sqlite3_bind_double(stmt, 2, planAmount);
+    sqlite3_bind_double(stmt, 3, pricePerKg);
+    sqlite3_bind_text(stmt, 4, startDate.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 5, endDate.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 6, startDate.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 7, endDate.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 8, crewId);
+    sqlite3_bind_double(stmt, 9, planAmount);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        printError(db);
+        sqlite3_finalize(stmt);
+        return false;
+    }
+
+    int rows = sqlite3_changes(db);
+    std::cout << "Bonus added for " << rows << " voyages.\n";
     sqlite3_finalize(stmt);
     return true;
 }

@@ -17,6 +17,7 @@ void displayMainMenu() {
     cout << "4. Manage Voyages\n";
     cout << "5. Manage Catches\n";
     cout << "6. Calculate Bonuses\n";
+    cout << "7. Calculate Bonuses for a single crew member\n";
     cout << "0. Exit\n";
     cout << "Select option: ";
 }
@@ -448,6 +449,28 @@ void manageBonusesMenu(sqlite3* db) {
     }
 }
 
+void manageSingleBonusesMenu(sqlite3* db) {
+    int crewId;
+    std::string startDate, endDate;
+    double planAmount, pricePerKg;
+
+    std::cout << "\n=== BONUS FOR A CREW MEMBER CALCULATION ===\n";
+    std::cout << "Enter crew member ID: ";
+    std::cin >> crewId;
+    std::cout << "Enter start date (YYYY-MM-DD): ";
+    std::cin >> startDate;
+    std::cout << "Enter end date (YYYY-MM-DD): ";
+    std::cin >> endDate;
+    std::cout << "Enter plan amount (kg): ";
+    std::cin >> planAmount;
+    std::cout << "Enter price per kg: ";
+    std::cin >> pricePerKg;
+
+    if (calculateBonusForCrewMember(db, crewId, startDate, endDate, planAmount, pricePerKg)) {
+        std::cout << "Bonus calculation completed successfully!\n";
+    }
+}
+
 int main() {
     sqlite3* db = initializeDatabase("bin/FishFlotilla.db");
     if (!db) {
@@ -479,6 +502,9 @@ int main() {
             break;
         case 6:
             manageBonusesMenu(db);
+            break;
+        case 7:
+            manageSingleBonusesMenu(db);
             break;
         case 0:
             cout << "Exiting program...\n";
