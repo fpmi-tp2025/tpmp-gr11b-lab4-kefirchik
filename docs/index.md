@@ -15,6 +15,7 @@
 ## Индивидуальные задания
 
 [Фомин Фёдор Вадимович](https://fpmi-tp2025.github.io/tpmp-gr11b-lab4-kefirchik/individual_fomin.html)
+
 [Пальчик Даниил Константинович](https://fpmi-tp2025.github.io/tpmp-gr11b-lab4-kefirchik/individual_palchik.html)
 
 ## Wiki
